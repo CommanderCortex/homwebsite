@@ -8,7 +8,7 @@ const memoryTotalNode = document.querySelector('#memory-total');
 const poolCpuNode = document.querySelector('#pool-cpu');
 const poolMemoryNode = document.querySelector('#pool-memory');
 
-const fallbackCapacity = { cores: 44, memoryGb: 260, nodes: 2 };
+const fallbackCapacity = { cores: 64, memoryGb: 256, memoryUsedGb: 25, load: 0.14, nodes: 1 };
 
 function updateClock() {
   const now = new Date();
@@ -19,10 +19,16 @@ updateClock();
 setInterval(updateClock, 1000);
 
 function renderCapacity(capacity) {
-  cpuTotalNode.textContent = `${capacity.cores} CORES`;
-  memoryTotalNode.textContent = `${capacity.memoryGb} GB RAM / ${capacity.nodes} PVE NODES`;
-  poolCpuNode.textContent = `${capacity.cores} CORES`;
-  poolMemoryNode.textContent = `${capacity.memoryGb} GB`;
+  const cpuSpec = '2X INTEL XEON GOLD 6530';
+  const ramUsed = Number(capacity.memoryUsedGb ?? 25).toFixed(1);
+  const ramTotal = Number(capacity.memoryGb ?? 256);
+  const loadValue = Number(capacity.load ?? 0.14).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+
+  cpuTotalNode.textContent = cpuSpec;
+  memoryTotalNode.textContent = `${ramUsed}/${ramTotal}GB DDR5 / LOAD ${loadValue}`;
+  poolCpuNode.textContent = cpuSpec;
+  poolMemoryNode.textContent = `${ramTotal}GB DDR5`;
+  if (loadNode) loadNode.textContent = loadValue;
 }
 
 async function loadHostCapacity() {
@@ -31,9 +37,11 @@ async function loadHostCapacity() {
     if (!response.ok) throw new Error('Capacity request failed');
     const capacity = await response.json();
     renderCapacity({
-      cores: Number(capacity.cores),
-      memoryGb: Math.round(Number(capacity.memoryGb)),
-      nodes: Number(capacity.nodes),
+      cores: Number(capacity.cores || 64),
+      memoryGb: Math.round(Number(capacity.memoryGb || 256)),
+      memoryUsedGb: Number(capacity.memoryUsedGb || 25),
+      load: Number(capacity.load || 0.14),
+      nodes: 1,
     });
   } catch {
     renderCapacity(fallbackCapacity);
