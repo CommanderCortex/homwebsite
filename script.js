@@ -5,10 +5,10 @@ const lastCheckNode = document.querySelector('#last-check');
 const projectsNode = document.querySelector('#github-projects');
 const cpuTotalNode = document.querySelector('#cpu-total');
 const memoryTotalNode = document.querySelector('#memory-total');
+const poolOsNode = document.querySelector('#pool-os');
 const poolCpuNode = document.querySelector('#pool-cpu');
 const poolMemoryNode = document.querySelector('#pool-memory');
-
-const fallbackCapacity = { cores: 128, memoryGb: 1024, memoryUsedGb: 25, load: 0.14, nodes: 1 };
+const poolLoadNode = document.querySelector('#pool-load');
 
 function updateClock() {
   const now = new Date();
@@ -19,15 +19,18 @@ updateClock();
 setInterval(updateClock, 1000);
 
 function renderCapacity(capacity) {
-  const cpuSpec = '4X INTEL XEON 6 6732P / 128-CORE';
-  const ramUsed = Number(capacity.memoryUsedGb ?? 25).toFixed(1);
-  const ramTotal = Number(capacity.memoryGb ?? 1024);
-  const loadValue = Number(capacity.load ?? 0.14).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  const cpuSpec = `${capacity.cpuCount}X ${capacity.cpuModel} / ${capacity.cores}-CORE`.toUpperCase();
+  const memoryType = capacity.memoryType.toUpperCase();
+  const ramUsed = Number(capacity.memoryUsedGb).toFixed(1);
+  const ramTotal = Math.round(Number(capacity.memoryGb));
+  const loadValue = Number(capacity.load).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 
   cpuTotalNode.textContent = cpuSpec;
-  memoryTotalNode.textContent = `${ramUsed}/${ramTotal}GB ECC DDR5 / LOAD ${loadValue}`;
+  memoryTotalNode.textContent = `${ramUsed}/${ramTotal}GB ${memoryType} / LOAD ${loadValue}`;
   poolCpuNode.textContent = cpuSpec;
-  poolMemoryNode.textContent = `${ramTotal}GB ECC DDR5`;
+  poolMemoryNode.textContent = `${ramTotal}GB ${memoryType}`;
+  poolOsNode.textContent = capacity.os.toUpperCase();
+  poolLoadNode.textContent = loadValue;
   if (loadNode) loadNode.textContent = loadValue;
 }
 
@@ -36,15 +39,9 @@ async function loadHostCapacity() {
     const response = await fetch('/api/host-capacity', { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('Capacity request failed');
     const capacity = await response.json();
-    renderCapacity({
-      cores: Number(capacity.cores || 128),
-      memoryGb: Math.round(Number(capacity.memoryGb || 1024)),
-      memoryUsedGb: Number(capacity.memoryUsedGb || 25),
-      load: Number(capacity.load || 0.14),
-      nodes: 1,
-    });
-  } catch {
-    renderCapacity(fallbackCapacity);
+    renderCapacity(capacity);
+  } catch (error) {
+    console.error('Host capacity request failed:', error);
   }
 }
 

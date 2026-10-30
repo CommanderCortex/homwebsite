@@ -1,7 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const https = require('https');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -9,6 +10,29 @@ const pveApiUrl = process.env.PVE_API_URL;
 const pveTokenId = process.env.PVE_TOKEN_ID;
 const pveTokenSecret = process.env.PVE_TOKEN_SECRET;
 const allowInsecureTls = process.env.PVE_ALLOW_INSECURE_TLS === 'true';
+
+function getNumericSetting(name, fallback, minimum = 0) {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+
+  const parsedValue = Number(value);
+  if (!Number.isFinite(parsedValue) || parsedValue < minimum) {
+    throw new Error(`${name} must be a number greater than or equal to ${minimum}`);
+  }
+  return parsedValue;
+}
+
+const hostSpecs = {
+  cpuCount: getNumericSetting('HOST_CPU_COUNT', 4, 1),
+  cpuModel: process.env.HOST_CPU_MODEL || 'Intel Xeon 6 6732P',
+  cores: getNumericSetting('HOST_TOTAL_CORES', 128, 1),
+  memoryGb: getNumericSetting('HOST_MEMORY_GB', 1024, 1),
+  memoryUsedGb: getNumericSetting('HOST_MEMORY_USED_GB', 25),
+  memoryType: process.env.HOST_MEMORY_TYPE || 'ECC DDR5',
+  os: process.env.HOST_OS || 'Proxmox',
+  load: getNumericSetting('HOST_LOAD', 0.14),
+  nodes: 1,
+};
 
 if (!pveApiUrl || !pveTokenId || !pveTokenSecret) {
   console.warn('PVE_API_URL, PVE_TOKEN_ID, and PVE_TOKEN_SECRET must be set for Proxmox telemetry.');
@@ -69,25 +93,22 @@ app.get('/api/host-capacity', async (req, res) => {
   try {
     const response = await proxmoxRequest('/nodes');
     const nodes = response.data.data || [];
-    const totalCores = nodes.reduce((total, node) => total + Number(node.maxcpu || 0), 0) || 128;
-    const totalMemoryGb = nodes.reduce((total, node) => total + Number(node.maxmem || 0), 0) / 1024 ** 3 || 1024;
-    const usedMemoryGb = Math.min(totalMemoryGb * 0.0977, totalMemoryGb);
+    const usedMemoryBytes = nodes.reduce((total, node) => total + Number(node.mem || 0), 0);
+    const hasReportedMemoryUse = nodes.some((node) => node.mem !== undefined && node.mem !== null);
+    const memoryUsedGb = hasReportedMemoryUse
+      ? Math.min(Math.max(usedMemoryBytes / 1024 ** 3, 0), hostSpecs.memoryGb)
+      : hostSpecs.memoryUsedGb;
 
     res.json({
-      cores: totalCores,
-      memoryGb: totalMemoryGb,
-      memoryUsedGb: usedMemoryGb,
-      load: 0.14,
-      nodes: 1,
+      ...hostSpecs,
+      memoryUsedGb,
+      source: nodes.length ? 'proxmox' : 'configured',
     });
   } catch (error) {
     console.error('Proxmox capacity failure:', error.message);
     res.json({
-      cores: 128,
-      memoryGb: 1024,
-      memoryUsedGb: 25,
-      load: 0.14,
-      nodes: 1,
+      ...hostSpecs,
+      source: 'configured',
     });
   }
 });
