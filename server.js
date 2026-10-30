@@ -37,6 +37,14 @@ function proxmoxRequest(path) {
   });
 }
 
+// Serve static frontend assets from the current directory
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
+
 app.get('/api/telemetry', async (req, res) => {
   try {
     const response = await proxmoxRequest('/nodes');
