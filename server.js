@@ -61,8 +61,8 @@ app.get('/api/host-capacity', async (req, res) => {
   try {
     const response = await proxmoxRequest('/nodes');
     const nodes = response.data.data || [];
-    const totalCores = nodes.reduce((total, node) => total + Number(node.maxcpu || 0), 0) || 64;
-    const totalMemoryGb = nodes.reduce((total, node) => total + Number(node.maxmem || 0), 0) / 1024 ** 3 || 256;
+    const totalCores = nodes.reduce((total, node) => total + Number(node.maxcpu || 0), 0) || 128;
+    const totalMemoryGb = nodes.reduce((total, node) => total + Number(node.maxmem || 0), 0) / 1024 ** 3 || 1024;
     const usedMemoryGb = Math.min(totalMemoryGb * 0.0977, totalMemoryGb);
 
     res.json({
@@ -75,8 +75,8 @@ app.get('/api/host-capacity', async (req, res) => {
   } catch (error) {
     console.error('Proxmox capacity failure:', error.message);
     res.json({
-      cores: 64,
-      memoryGb: 256,
+      cores: 128,
+      memoryGb: 1024,
       memoryUsedGb: 25,
       load: 0.14,
       nodes: 1,
